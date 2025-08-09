@@ -25,7 +25,7 @@ class VideoNormalizer:
     def __init__(self, report_file: str, target_lufs: float = DEFAULT_TARGET_LUFS,
                  true_peak: float = DEFAULT_TRUE_PEAK, lra: float = DEFAULT_LRA,
                  output_dir: Optional[str] = None, dry_run: bool = False,
-                 backup: bool = True, in_place: bool = False):
+                 backup: bool = True, in_place: bool = False, assume_yes: bool = False):
         self.report_file = Path(report_file)
         self.target_lufs = target_lufs
         self.true_peak = true_peak
@@ -34,6 +34,7 @@ class VideoNormalizer:
         self.dry_run = dry_run
         self.backup = backup
         self.in_place = in_place
+        self.assume_yes = assume_yes
         self.files_to_process = []
         self.log_file = f"normalization_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         
@@ -306,10 +307,11 @@ class VideoNormalizer:
             else:
                 print(f"  Output: Same directory with '_normalized' suffix")
             
-            response = input("\nProceed with normalization? (y/N): ")
-            if response.lower() != 'y':
-                print("Normalization cancelled")
-                return 0
+            if not self.assume_yes:
+                response = input("\nProceed with normalization? (y/N): ")
+                if response.lower() != 'y':
+                    print("Normalization cancelled")
+                    return 0
         
         # Process each file
         print("\nProcessing files...")
@@ -365,8 +367,10 @@ Examples:
     )
     
     parser.add_argument('report', help='Path to loudness analysis report file')
-    parser.add_argument('--target', '-t', type=float, default=DEFAULT_TARGET_LUFS,
-                        help=f'Target LUFS for normalization (default: {DEFAULT_TARGET_LUFS})')
+    parser.add_argument('--target', '-t', type=float, default=None,
+                        help=f'Explicit target LUFS (overrides --preset). Default if unset: {DEFAULT_TARGET_LUFS}')
+    parser.add_argument('--preset', choices=['broadcast', 'gaming', 'podcast'],
+                        help='Target preset: broadcast (-24), gaming (-16), podcast (-16)')
     parser.add_argument('--true-peak', '-tp', type=float, default=DEFAULT_TRUE_PEAK,
                         help=f'True peak limit in dB (default: {DEFAULT_TRUE_PEAK})')
     parser.add_argument('--lra', type=float, default=DEFAULT_LRA,
@@ -379,6 +383,8 @@ Examples:
                         help='Skip backup when using --in-place (use with caution!)')
     parser.add_argument('--dry-run', '-n', action='store_true',
                         help='Show what would be done without actually processing files')
+    parser.add_argument('--yes', '-y', action='store_true',
+                        help='Proceed without confirmation prompt')
     
     args = parser.parse_args()
     
@@ -387,16 +393,26 @@ Examples:
         print("Error: Cannot use --in-place and --output-dir together")
         return 1
     
+    # Resolve target from explicit value or preset
+    if args.target is not None:
+        resolved_target = args.target
+    elif args.preset:
+        preset_map = {'broadcast': -24.0, 'gaming': -16.0, 'podcast': -16.0}
+        resolved_target = preset_map[args.preset]
+    else:
+        resolved_target = DEFAULT_TARGET_LUFS
+
     # Create normalizer instance
     normalizer = VideoNormalizer(
         report_file=args.report,
-        target_lufs=args.target,
+        target_lufs=resolved_target,
         true_peak=args.true_peak,
         lra=args.lra,
         output_dir=args.output_dir,
         dry_run=args.dry_run,
         backup=not args.no_backup,
-        in_place=args.in_place
+        in_place=args.in_place,
+        assume_yes=args.yes
     )
     
     return normalizer.run()
