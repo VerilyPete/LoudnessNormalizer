@@ -66,7 +66,7 @@ python loudness.py normalize report.txt --preset gaming
 # Podcast (-16 LUFS)
 python loudness.py normalize report.txt --preset podcast
 
-# Save all normalized files to a specific directory
+# Save all normalized files to a specific directory (keeps original filenames)
 python loudness.py normalize report.txt --output-dir ./normalized_videos
 
 # Replace files in-place (creates backups first)
@@ -88,6 +88,7 @@ Runs `check` then normalizes only out-of-spec files using the generated report.
 python loudness.py auto ./videos --target -18 --yes
 ```
 All `normalize` options (e.g., `--output-dir`, `--in-place`, `--no-backup`, `--dry-run`) also work with `auto`.
+When `--output-dir` is used, output files keep original filenames (no `_normalized` suffix).
 
 Preset examples with `auto`:
 ```
@@ -127,7 +128,7 @@ python loudness_normalizer.py report.txt --preset gaming
 # Podcast (-16 LUFS)
 python loudness_normalizer.py report.txt --preset podcast
 
-# Save all normalized files to a specific directory
+# Save all normalized files to a specific directory (keeps original filenames)
 python loudness_normalizer.py report.txt --output-dir ./normalized_videos
 
 # Replace files in-place (creates backups first)
@@ -148,6 +149,16 @@ python loudness_normalizer.py report.txt --yes
 - `--dry-run` prints intended ffmpeg commands and skips processing.
 - The analyzer is non-recursive by design; place all target videos in one folder or run per folder.
 - ffmpeg timeouts are applied to protect against hanging on very large/corrupt files.
+
+### Output naming rules
+- Default (no `--output-dir`, not `--in-place`): saves alongside the source as `<name>_normalized<ext>`
+- With `--output-dir`: saves to that directory as `<name><ext>` (no suffix)
+- With `--in-place`: replaces the original file; creates `<name>_backup<ext>` unless `--no-backup` is set
+
+### Presets: Known standards
+- Broadcast (`--preset broadcast`, -24 LUFS): TV broadcast standard (≈ -23 LKFS internationally). Broadcasters may reject content that violates this target.
+- Gaming (`--preset gaming`, -16 LUFS): Common industry practice for games. Not strictly enforced; some flexibility is typical.
+- Podcast (`--preset podcast`, -16 LUFS): Convention popularized by Apple Podcasts/iTunes; small deviations are generally acceptable.
 
 ## Utility: Remove `_normalized` Suffix
 After creating normalized copies (e.g., `clip_normalized.mp4`), you can strip the suffix:

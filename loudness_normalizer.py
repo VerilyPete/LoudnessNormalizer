@@ -115,10 +115,8 @@ class VideoNormalizer:
         elif self.output_dir:
             # Create output directory if it doesn't exist
             self.output_dir.mkdir(parents=True, exist_ok=True)
-            # Add _normalized suffix before extension
-            stem = input_path.stem
-            suffix = input_path.suffix
-            return self.output_dir / f"{stem}_normalized{suffix}"
+            # Keep original filename when saving to a separate output directory
+            return self.output_dir / input_path.name
         else:
             # Save in same directory with _normalized suffix
             stem = input_path.stem
