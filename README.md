@@ -50,6 +50,9 @@ python loudness.py check /path/to/folder --save-report
 python loudness.py check /path/to/folder --report-file ./loudness_report.txt
 ```
 
+Timeouts:
+- Override the ffmpeg analysis timeout (seconds): `--analysis-timeout 900`
+
 ### Normalize
 Normalize files based on a previously generated report.
 ```
@@ -86,6 +89,9 @@ python loudness.py normalize report.txt --target -23 --true-peak -2
 python loudness.py normalize report.txt --yes
 ```
 
+Timeouts:
+- Override the ffmpeg normalization timeout (seconds): `--normalize-timeout 3600`
+
 ### Auto
 Runs analysis then normalizes only out-of-spec files. By default, no confirmation prompt; pass `--confirm` to require one. All `normalize` options (e.g., `--output-dir`, `--in-place`, `--no-backup`, `--dry-run`) also work with `auto`.
 ```
@@ -95,6 +101,10 @@ When `--output-dir` is used, output files keep original filenames (no `_normaliz
 Notes:
 - `auto` does not write a report file to disk; analysis results are used in-memory.
 - To create a report file, run `check`. To log `auto` runs, redirect or pipe stdout (e.g., `... | tee auto_run.log`).
+
+Timeouts:
+- Override analysis timeout: `--analysis-timeout 900`
+- Override normalization timeout: `--normalize-timeout 3600`
 
 Preset examples with `auto`:
 ```

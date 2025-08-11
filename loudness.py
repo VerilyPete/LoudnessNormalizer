@@ -52,12 +52,17 @@ DEFAULT_TARGET_LUFS = -18.0
 DEFAULT_TRUE_PEAK = -1.5
 DEFAULT_LRA = 11.0
 
+# ffmpeg timeout defaults (seconds)
+DEFAULT_ANALYSIS_TIMEOUT_S = 300
+DEFAULT_NORMALIZE_TIMEOUT_S = 1800
+
 
 class VideoLoudnessChecker:
-    def __init__(self, folder_path: str = "."):
+    def __init__(self, folder_path: str = ".", analysis_timeout_seconds: int = DEFAULT_ANALYSIS_TIMEOUT_S):
         self.folder_path = Path(folder_path)
         self.report_file = f"loudness_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         self.results: List[Dict] = []
+        self.analysis_timeout_seconds = analysis_timeout_seconds
 
     def check_dependencies(self) -> bool:
         if not shutil.which('ffmpeg'):
@@ -82,7 +87,7 @@ class VideoLoudnessChecker:
     def analyze_loudness(self, file_path: Path) -> Optional[Dict]:
         try:
             cmd = ['ffmpeg', '-i', str(file_path), '-af', 'loudnorm=print_format=summary', '-f', 'null', '-']
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.analysis_timeout_seconds)
             output = result.stderr + result.stdout
             lufs_value = self.extract_lufs(output)
             if lufs_value is not None:
@@ -231,7 +236,8 @@ class VideoNormalizer:
     def __init__(self, report_file: str, target_lufs: float = DEFAULT_TARGET_LUFS,
                  true_peak: float = DEFAULT_TRUE_PEAK, lra: float = DEFAULT_LRA,
                  output_dir: Optional[str] = None, dry_run: bool = False,
-                 backup: bool = True, in_place: bool = False, assume_yes: bool = False):
+                 backup: bool = True, in_place: bool = False, assume_yes: bool = False,
+                 normalize_timeout_seconds: int = DEFAULT_NORMALIZE_TIMEOUT_S):
         self.report_file = Path(report_file)
         self.target_lufs = target_lufs
         self.true_peak = true_peak
@@ -243,6 +249,7 @@ class VideoNormalizer:
         self.assume_yes = assume_yes
         self.files_to_process: List[Dict] = []
         self.log_file = f"normalization_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        self.normalize_timeout_seconds = normalize_timeout_seconds
 
     def parse_report(self) -> List[Dict]:
         if not self.report_file.exists():
@@ -339,7 +346,7 @@ class VideoNormalizer:
         try:
             print("  Normalizing with ffmpeg...")
             print(f"    Target: {self.target_lufs} LUFS (adjustment: {file_info['adjustment_needed']:+.1f} dB)")
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.normalize_timeout_seconds)
             if result.returncode != 0:
                 print(f"    ERROR: ffmpeg failed with exit code {result.returncode}")
                 return False
@@ -459,7 +466,7 @@ class VideoNormalizer:
         return 0 if error_count == 0 else 1
 
 def cmd_check(args: argparse.Namespace) -> int:
-    checker = VideoLoudnessChecker(args.folder)
+    checker = VideoLoudnessChecker(args.folder, analysis_timeout_seconds=args.analysis_timeout)
     return checker.run(save_report=args.save_report, report_file=args.report_file)
 
 
@@ -486,6 +493,7 @@ def cmd_normalize(args: argparse.Namespace) -> int:
         backup=not args.no_backup,
         in_place=args.in_place,
         assume_yes=args.yes,
+        normalize_timeout_seconds=args.normalize_timeout,
     )
     return normalizer.run()
 
@@ -496,7 +504,7 @@ def cmd_auto(args: argparse.Namespace) -> int:
     Prints a concise stdout report before normalizing. No prompt by default;
     use --confirm to require a confirmation prompt.
     """
-    checker = VideoLoudnessChecker(args.folder)
+    checker = VideoLoudnessChecker(args.folder, analysis_timeout_seconds=args.analysis_timeout)
 
     # Discover files without writing a report
     video_files = checker.find_video_files()
@@ -556,6 +564,7 @@ def cmd_auto(args: argparse.Namespace) -> int:
         backup=not args.no_backup,
         in_place=args.in_place,
         assume_yes=args.yes,
+        normalize_timeout_seconds=args.normalize_timeout,
     )
     # Ensure file lookup works
     try:
@@ -624,6 +633,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_check.add_argument("folder", nargs="?", default=".", help="Folder containing video files (default: current directory)")
     p_check.add_argument("--save-report", action="store_true", help="Also write the report to a timestamped file")
     p_check.add_argument("--report-file", type=str, help="Write the report to this specific file path")
+    p_check.add_argument("--analysis-timeout", type=int, default=DEFAULT_ANALYSIS_TIMEOUT_S, help=f"ffmpeg analysis timeout in seconds (default: {DEFAULT_ANALYSIS_TIMEOUT_S})")
     p_check.set_defaults(func=cmd_check)
 
     # normalize
@@ -638,6 +648,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_norm.add_argument("--no-backup", action="store_true", help="Skip backup when using --in-place")
     p_norm.add_argument("--dry-run", "-n", action="store_true", help="Show what would be done without processing files")
     p_norm.add_argument("--yes", "-y", action="store_true", help="Proceed without confirmation prompt")
+    p_norm.add_argument("--normalize-timeout", type=int, default=DEFAULT_NORMALIZE_TIMEOUT_S, help=f"ffmpeg normalization timeout in seconds (default: {DEFAULT_NORMALIZE_TIMEOUT_S})")
     p_norm.set_defaults(func=cmd_normalize)
 
     # auto
@@ -653,6 +664,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_auto.add_argument("--dry-run", "-n", action="store_true", help="Show what would be done without processing files")
     p_auto.add_argument("--yes", "-y", action="store_true", help="Proceed without confirmation prompt")
     p_auto.add_argument("--confirm", action="store_true", help="Ask for confirmation before normalizing")
+    p_auto.add_argument("--analysis-timeout", type=int, default=DEFAULT_ANALYSIS_TIMEOUT_S, help=f"ffmpeg analysis timeout in seconds (default: {DEFAULT_ANALYSIS_TIMEOUT_S})")
+    p_auto.add_argument("--normalize-timeout", type=int, default=DEFAULT_NORMALIZE_TIMEOUT_S, help=f"ffmpeg normalization timeout in seconds (default: {DEFAULT_NORMALIZE_TIMEOUT_S})")
     p_auto.set_defaults(func=cmd_auto)
 
     return parser
