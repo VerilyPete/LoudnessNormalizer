@@ -45,9 +45,17 @@ Note: `auto` runs in-memory and does not write a report file. Pipe stdout to sav
 The unified entrypoint is `loudness.py`.
 
 ### Check
-Analyze loudness for all videos in a folder (non-recursive) and write a timestamped report.
+Analyze loudness for all videos in a folder (non-recursive). By default, prints the report to stdout only.
 ```
 python loudness.py check /path/to/folder
+```
+To also write a report file:
+```
+# Timestamped file
+python loudness.py check /path/to/folder --save-report
+
+# Specific file path
+python loudness.py check /path/to/folder --report-file ./loudness_report.txt
 ```
 
 ### Normalize

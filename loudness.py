@@ -131,87 +131,98 @@ class VideoLoudnessChecker:
         else:
             return ('OK', 0.0)
 
-    def write_report(self, video_files: List[Path]) -> None:
-        with open(self.report_file, 'w') as f:
-            f.write("=== Video Loudness Analysis Report ===\n")
-            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"Folder: {self.folder_path.absolute()}\n")
-            f.write(f"Target Range: {MIN_LUFS} to {MAX_LUFS} LUFS (podcast/dialogue)\n\n")
+    def output_report(self, video_files: List[Path], report_path: Optional[Path] = None) -> None:
+        f = open(report_path, 'w') if report_path else None
+        def w(line: str) -> None:
+            if f:
+                f.write(line)
 
-            total_files = len(video_files)
-            analyzed_files = 0
-            ok_files = 0
-            too_quiet_files = 0
-            too_loud_files = 0
-            error_files = 0
+        w("=== Video Loudness Analysis Report ===\n")
+        w(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        w(f"Folder: {self.folder_path.absolute()}\n")
+        w(f"Target Range: {MIN_LUFS} to {MAX_LUFS} LUFS (podcast/dialogue)\n\n")
 
-            print(f"\nFound {total_files} video files to process\n")
-            f.write(f"Found {total_files} video files to process\n\n")
+        total_files = len(video_files)
+        analyzed_files = 0
+        ok_files = 0
+        too_quiet_files = 0
+        too_loud_files = 0
+        error_files = 0
 
-            for i, file_path in enumerate(video_files, 1):
-                print(f"Processing file {i}/{total_files}: {file_path.name}")
-                print(f"  Full path: {file_path}")
-                if not file_path.exists() or not os.access(file_path, os.R_OK):
-                    error_msg = f"ERROR: {file_path.name} - File not readable\n"
-                    print(f"  {error_msg}")
-                    f.write(error_msg)
-                    error_files += 1
-                    continue
-                result = self.analyze_loudness(file_path)
-                if result:
-                    analyzed_files += 1
-                    status, deviation = result['status']
-                    lufs = result['lufs']
-                    if status == 'OK':
-                        msg = f"OK: {result['filename']} ({lufs:.1f} LUFS)\n"
-                        ok_files += 1
-                    elif status == 'TOO_QUIET':
-                        msg = (
-                            f"TOO QUIET: {result['filename']}\n"
-                            f"  Current: {lufs:.1f} LUFS | Target: {MIN_LUFS} to {MAX_LUFS} LUFS | "
-                            f"Deviation: {deviation:.1f} dB quieter\n\n"
-                        )
-                        too_quiet_files += 1
-                    else:
-                        msg = (
-                            f"TOO LOUD: {result['filename']}\n"
-                            f"  Current: {lufs:.1f} LUFS | Target: {MIN_LUFS} to {MAX_LUFS} LUFS | "
-                            f"Deviation: {deviation:.1f} dB louder\n\n"
-                        )
-                        too_loud_files += 1
-                    print(f"  {msg.strip()}")
-                    f.write(msg)
-                    self.results.append(result)
+        print(f"\nFound {total_files} video files to process\n")
+        w(f"Found {total_files} video files to process\n\n")
+
+        for i, file_path in enumerate(video_files, 1):
+            print(f"Processing file {i}/{total_files}: {file_path.name}")
+            print(f"  Full path: {file_path}")
+            if not file_path.exists() or not os.access(file_path, os.R_OK):
+                error_msg = f"ERROR: {file_path.name} - File not readable\n"
+                print(f"  {error_msg}")
+                w(error_msg)
+                error_files += 1
+                continue
+            result = self.analyze_loudness(file_path)
+            if result:
+                analyzed_files += 1
+                status, deviation = result['status']
+                lufs = result['lufs']
+                if status == 'OK':
+                    msg = f"OK: {result['filename']} ({lufs:.1f} LUFS)\n"
+                    ok_files += 1
+                elif status == 'TOO_QUIET':
+                    msg = (
+                        f"TOO QUIET: {result['filename']}\n"
+                        f"  Current: {lufs:.1f} LUFS | Target: {MIN_LUFS} to {MAX_LUFS} LUFS | "
+                        f"Deviation: {deviation:.1f} dB quieter\n\n"
+                    )
+                    too_quiet_files += 1
                 else:
-                    error_msg = f"ERROR: {file_path.name} - Could not analyze file\n"
-                    print(f"  {error_msg}")
-                    f.write(error_msg)
-                    error_files += 1
+                    msg = (
+                        f"TOO LOUD: {result['filename']}\n"
+                        f"  Current: {lufs:.1f} LUFS | Target: {MIN_LUFS} to {MAX_LUFS} LUFS | "
+                        f"Deviation: {deviation:.1f} dB louder\n\n"
+                    )
+                    too_loud_files += 1
+                print(f"  {msg.strip()}")
+                w(msg)
+                self.results.append(result)
+            else:
+                error_msg = f"ERROR: {file_path.name} - Could not analyze file\n"
+                print(f"  {error_msg}")
+                w(error_msg)
+                error_files += 1
 
-            out_of_spec = too_quiet_files + too_loud_files
-            summary = "\n=== SUMMARY ===\n"
-            summary += f"Total files found: {total_files}\n"
-            summary += f"Files successfully analyzed: {analyzed_files}\n"
-            summary += f"Files with errors: {error_files}\n"
-            summary += f"Files within spec ({MAX_LUFS} to {MIN_LUFS} LUFS): {ok_files}\n"
-            summary += f"Files out of spec: {out_of_spec}\n"
-            summary += f"  - Too quiet (< {MIN_LUFS} LUFS): {too_quiet_files}\n"
-            summary += f"  - Too loud (> {MAX_LUFS} LUFS): {too_loud_files}\n"
-            if out_of_spec > 0:
-                summary += "\nConsider normalizing out-of-spec files using:\n"
-                summary += "ffmpeg -i input.mp4 -af loudnorm=I=-18:TP=-1.5:LRA=11 output.mp4\n"
-            print(summary)
-            f.write(summary)
-        print(f"\nReport saved to: {self.report_file}")
+        out_of_spec = too_quiet_files + too_loud_files
+        summary = "\n=== SUMMARY ===\n"
+        summary += f"Total files found: {total_files}\n"
+        summary += f"Files successfully analyzed: {analyzed_files}\n"
+        summary += f"Files with errors: {error_files}\n"
+        summary += f"Files within spec ({MAX_LUFS} to {MIN_LUFS} LUFS): {ok_files}\n"
+        summary += f"Files out of spec: {out_of_spec}\n"
+        summary += f"  - Too quiet (< {MIN_LUFS} LUFS): {too_quiet_files}\n"
+        summary += f"  - Too loud (> {MAX_LUFS} LUFS): {too_loud_files}\n"
+        if out_of_spec > 0:
+            summary += "\nConsider normalizing out-of-spec files using:\n"
+            summary += "ffmpeg -i input.mp4 -af loudnorm=I=-18:TP=-1.5:LRA=11 output.mp4\n"
+        print(summary)
+        w(summary)
+        if f:
+            f.close()
+            print(f"\nReport saved to: {report_path}")
 
-    def run(self) -> int:
+    def run(self, save_report: bool = False, report_file: Optional[str] = None) -> int:
         if not self.check_dependencies():
             return 1
         video_files = self.find_video_files()
         if not video_files:
             print(f"No video files found in '{self.folder_path}'")
             return 0
-        self.write_report(video_files)
+        chosen_path: Optional[Path] = None
+        if report_file:
+            chosen_path = Path(report_file)
+        elif save_report:
+            chosen_path = Path(self.report_file)
+        self.output_report(video_files, chosen_path)
         print("\nAnalysis complete!")
         return 0
 
@@ -449,7 +460,7 @@ class VideoNormalizer:
 
 def cmd_check(args: argparse.Namespace) -> int:
     checker = VideoLoudnessChecker(args.folder)
-    return checker.run()
+    return checker.run(save_report=args.save_report, report_file=args.report_file)
 
 
 def _resolve_target_lufs(args: argparse.Namespace) -> float:
@@ -609,8 +620,10 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # check
-    p_check = subparsers.add_parser("check", help="Analyze a folder and write a loudness report")
+    p_check = subparsers.add_parser("check", help="Analyze a folder and print a loudness report to stdout")
     p_check.add_argument("folder", nargs="?", default=".", help="Folder containing video files (default: current directory)")
+    p_check.add_argument("--save-report", action="store_true", help="Also write the report to a timestamped file")
+    p_check.add_argument("--report-file", type=str, help="Write the report to this specific file path")
     p_check.set_defaults(func=cmd_check)
 
     # normalize
