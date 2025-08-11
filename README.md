@@ -1,16 +1,11 @@
 # Loudness Normalizer
 
-A single Python CLI to analyze and normalize video loudness using ffmpeg.
+A Python CLI tool to analyze and normalize video loudness using ffmpeg.
 
-It provides a unified entrypoint:
-- `loudness.py` with subcommands:
-  - `auto` (default): analyze then normalize out-of-spec files in one go
-  - `check`: analyze a folder of videos and write a loudness report
-  - `normalize`: normalize files using a prior report
-
-The legacy scripts have been removed; use `loudness.py` for all flows.
-Utility script:
-- `remove_normalized_suffix.sh` to strip `_normalized` from filenames
+Subcommands:
+- `auto` (default): analyze a folder, then normalize out-of-spec files in one go
+- `check`: analyze a folder and print a loudness report (optionally save it)
+- `normalize`: normalize files using a previously generated report
 
 ## Requirements
 - ffmpeg installed and available on PATH
@@ -40,9 +35,6 @@ python loudness.py normalize loudness_report_20240101_120000.txt --yes
 python loudness.py auto ./videos --target -18 --yes
 ```
 Note: `auto` runs in-memory and does not write a report file. Pipe stdout to save a log (e.g., `python loudness.py auto ./videos --yes > auto_run.log`).
-
-## Unified CLI
-The unified entrypoint is `loudness.py`.
 
 ### Check
 Analyze loudness for all videos in a folder (non-recursive). By default, prints the report to stdout only.
