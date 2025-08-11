@@ -1,17 +1,16 @@
 # Loudness Normalizer
 
-A small toolkit to analyze and normalize video loudness using ffmpeg.
+A single Python CLI to analyze and normalize video loudness using ffmpeg.
 
-It provides:
-- `loudness.py` unified CLI with subcommands:
-  - `check`: Analyze a folder of videos and write a loudness report
-  - `normalize`: Normalize files using a prior report
-  - `auto`: Run `check` then normalize out-of-spec files in one go
-- Backward-compatible scripts:
-  - `loudness_checker.py`
-  - `loudness_normalizer.py`
-- Utility script:
-  - `remove_normalized_suffix.sh` to strip `_normalized` from filenames
+It provides a unified entrypoint:
+- `loudness.py` with subcommands:
+  - `auto` (default): analyze then normalize out-of-spec files in one go
+  - `check`: analyze a folder of videos and write a loudness report
+  - `normalize`: normalize files using a prior report
+
+The legacy scripts have been removed; use `loudness.py` for all flows.
+Utility script:
+- `remove_normalized_suffix.sh` to strip `_normalized` from filenames
 
 ## Requirements
 - ffmpeg installed and available on PATH
@@ -24,6 +23,10 @@ ffmpeg -version
 ```
 
 ## Quick Start
+- Default (auto): analyze and normalize in one go (no prompt by default):
+```
+python loudness.py --yes
+```
 - Analyze a folder and produce a report:
 ```
 python loudness.py check ./videos
@@ -32,11 +35,11 @@ python loudness.py check ./videos
 ```
 python loudness.py normalize loudness_report_20240101_120000.txt --yes
 ```
-- One-shot: check then normalize out-of-spec files:
+- One-shot with explicit folder/target:
 ```
 python loudness.py auto ./videos --target -18 --yes
 ```
-Note: `auto` runs fully in-memory and does not write a report file. Pipe stdout if you want a record (e.g., `python loudness.py auto ./videos --yes > auto_run.log`).
+Note: `auto` runs in-memory and does not write a report file. Pipe stdout to save a log (e.g., `python loudness.py auto ./videos --yes > auto_run.log`).
 
 ## Unified CLI
 The unified entrypoint is `loudness.py`.
@@ -84,16 +87,14 @@ python loudness.py normalize report.txt --yes
 ```
 
 ### Auto
-Runs `check` then normalizes only out-of-spec files using the generated report.
+Runs analysis then normalizes only out-of-spec files. By default, no confirmation prompt; pass `--confirm` to require one. All `normalize` options (e.g., `--output-dir`, `--in-place`, `--no-backup`, `--dry-run`) also work with `auto`.
 ```
 python loudness.py auto ./videos --target -18 --yes
 ```
-All `normalize` options (e.g., `--output-dir`, `--in-place`, `--no-backup`, `--dry-run`) also work with `auto`.
 When `--output-dir` is used, output files keep original filenames (no `_normalized` suffix).
-
 Notes:
 - `auto` does not write a report file to disk; analysis results are used in-memory.
-- To create a report file, run `check`. If you want a log of the `auto` run, redirect or pipe stdout (e.g., `... | tee auto_run.log`).
+- To create a report file, run `check`. To log `auto` runs, redirect or pipe stdout (e.g., `... | tee auto_run.log`).
 
 Preset examples with `auto`:
 ```
@@ -105,49 +106,8 @@ python loudness.py auto ./videos --preset gaming --yes
 python loudness.py auto ./videos --preset podcast --yes
 ```
 
-## Backward-Compatible Scripts
-You can still use the original scripts directly if you prefer.
-
-### Analyzer
-```
-python loudness_checker.py /path/to/folder
-```
-Generates a report like `loudness_report_YYYYMMDD_HHMMSS.txt`. Default target range: -20 to -16 LUFS (dialog/podcast).
-
-### Normalizer
-```
-# Basic usage - normalize files from a report
-python loudness_normalizer.py loudness_report_20240101_120000.txt
-
-# Dry run - see what would be done without processing
-python loudness_normalizer.py report.txt --dry-run
-
-# Custom target for louder output (e.g., for music videos)
-python loudness_normalizer.py report.txt --target -14
-
-# Presets for known standards
-# Broadcast (-24 LUFS)
-python loudness_normalizer.py report.txt --preset broadcast
-# Gaming (-16 LUFS)
-python loudness_normalizer.py report.txt --preset gaming
-# Podcast (-16 LUFS)
-python loudness_normalizer.py report.txt --preset podcast
-
-# Save all normalized files to a specific directory (keeps original filenames)
-python loudness_normalizer.py report.txt --output-dir ./normalized_videos
-
-# Replace files in-place (creates backups first)
-python loudness_normalizer.py report.txt --in-place
-
-# In-place without backup (dangerous but saves space)
-python loudness_normalizer.py report.txt --in-place --no-backup
-
-# Custom settings for broadcast standard
-python loudness_normalizer.py report.txt --target -23 --true-peak -2
-
-# Non-interactive (skip confirmation)
-python loudness_normalizer.py report.txt --yes
-```
+## Removed legacy scripts
+The separate `loudness_checker.py` and `loudness_normalizer.py` scripts have been removed. Use the unified `loudness.py` for all workflows.
 
 ## Notes and Tips
 - `--in-place` will replace originals; by default a backup copy is created (e.g., `video_backup.mp4`). Use `--no-backup` with caution.
