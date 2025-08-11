@@ -65,32 +65,34 @@ def cmd_normalize(args: argparse.Namespace) -> int:
 
 
 def cmd_auto(args: argparse.Namespace) -> int:
-    # 1) Check
+    """Run in-memory check and normalize out-of-spec files without writing a report."""
     checker = VideoLoudnessChecker(args.folder)
-    check_rc = checker.run()
-    if check_rc != 0:
-        return check_rc
 
-    # Compute out-of-spec count from results if available
-    out_of_spec = 0
-    for result in getattr(checker, 'results', []):
-        status, _ = result.get('status', ('OK', 0.0))
-        if status != 'OK':
-            out_of_spec += 1
+    # Discover files without writing a report
+    video_files = checker.find_video_files()
+    if not video_files:
+        print(f"No video files found in '{args.folder}'.")
+        return 0
 
-    if out_of_spec == 0:
+    print(f"Found {len(video_files)} video files to analyze.\n")
+
+    # Analyze and collect out-of-spec entries
+    analysis_results = []
+    for idx, file_path in enumerate(video_files, 1):
+        print(f"Analyzing [{idx}/{len(video_files)}]: {file_path.name}")
+        result = checker.analyze_loudness(file_path)
+        if result:
+            analysis_results.append(result)
+
+    out_of_spec_results = [r for r in analysis_results if r.get('status', ('OK', 0.0))[0] != 'OK']
+    if not out_of_spec_results:
         print("All files are within spec. Nothing to normalize.")
         return 0
 
-    report_path = Path(getattr(checker, 'report_file', ''))
-    if not report_path:
-        print("Error: Could not determine report file path from check step.")
-        return 1
-
-    # 2) Normalize with the generated report
+    # Prepare normalizer and perform normalization per file without a report file
     target_lufs = _resolve_target_lufs(args)
     normalizer = VideoNormalizer(
-        report_file=str(report_path),
+        report_file="AUTO_MODE",  # placeholder; we won't parse it
         target_lufs=target_lufs,
         true_peak=args.true_peak,
         lra=args.lra,
@@ -100,7 +102,56 @@ def cmd_auto(args: argparse.Namespace) -> int:
         in_place=args.in_place,
         assume_yes=args.yes,
     )
-    return normalizer.run()
+    # Ensure file lookup works
+    try:
+        from pathlib import Path as _P
+        normalizer.source_folder = _P(args.folder)
+    except Exception:
+        pass
+
+    # Optional confirmation similar to normalizer.run()
+    if not args.dry_run and not args.yes:
+        print("\nNormalization settings:")
+        print(f"  Target: {target_lufs} LUFS")
+        print(f"  True Peak: {args.true_peak} dB")
+        print(f"  LRA: {args.lra} LU")
+        if args.in_place:
+            print(f"  Mode: In-place replacement {'(with backup)' if not args.no_backup else '(NO BACKUP)'}")
+        elif args.output_dir:
+            print(f"  Output: {args.output_dir}/ (original filenames)")
+        else:
+            print("  Output: Same directory with '_normalized' suffix")
+        resp = input("\nProceed with normalization? (y/N): ")
+        if resp.lower() != 'y':
+            print("Normalization cancelled")
+            return 0
+
+    print("\nProcessing out-of-spec files...")
+    success_count = 0
+    error_count = 0
+
+    for i, res in enumerate(out_of_spec_results, 1):
+        filename = res['filename']
+        current_lufs = res['lufs']
+        status, deviation = res['status']
+        file_info = {
+            'filename': filename,
+            'current_lufs': current_lufs,
+            'status': 'TOO_QUIET' if status == 'TOO_QUIET' else 'TOO_LOUD',
+            'deviation': deviation,
+            'adjustment_needed': target_lufs - current_lufs,
+        }
+        print(f"\n[{i}/{len(out_of_spec_results)}] Processing: {filename}")
+        if normalizer.normalize_file(file_info):
+            success_count += 1
+        else:
+            error_count += 1
+
+    print("\n=== SUMMARY ===")
+    print(f"Files analyzed: {len(analysis_results)}")
+    print(f"Out-of-spec processed: {success_count}")
+    print(f"Errors: {error_count}")
+    return 0 if error_count == 0 else 1
 
 
 def build_parser() -> argparse.ArgumentParser:

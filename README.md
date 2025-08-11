@@ -36,6 +36,7 @@ python loudness.py normalize loudness_report_20240101_120000.txt --yes
 ```
 python loudness.py auto ./videos --target -18 --yes
 ```
+Note: `auto` runs fully in-memory and does not write a report file. Pipe stdout if you want a record (e.g., `python loudness.py auto ./videos --yes > auto_run.log`).
 
 ## Unified CLI
 The unified entrypoint is `loudness.py`.
@@ -89,6 +90,10 @@ python loudness.py auto ./videos --target -18 --yes
 ```
 All `normalize` options (e.g., `--output-dir`, `--in-place`, `--no-backup`, `--dry-run`) also work with `auto`.
 When `--output-dir` is used, output files keep original filenames (no `_normalized` suffix).
+
+Notes:
+- `auto` does not write a report file to disk; analysis results are used in-memory.
+- To create a report file, run `check`. If you want a log of the `auto` run, redirect or pipe stdout (e.g., `... | tee auto_run.log`).
 
 Preset examples with `auto`:
 ```
