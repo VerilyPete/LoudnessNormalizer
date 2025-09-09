@@ -116,9 +116,6 @@ python loudness.py auto ./videos --preset gaming --yes
 python loudness.py auto ./videos --preset podcast --yes
 ```
 
-## Removed legacy scripts
-The separate `loudness_checker.py` and `loudness_normalizer.py` scripts have been removed. Use the unified `loudness.py` for all workflows.
-
 ## Notes and Tips
 - `--in-place` will replace originals; by default a backup copy is created (e.g., `video_backup.mp4`). Use `--no-backup` with caution.
 - `--dry-run` prints intended ffmpeg commands and skips processing.
